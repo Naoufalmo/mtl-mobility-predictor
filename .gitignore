@@ -30,6 +30,7 @@ env/
 data/raw/*
 data/processed/*
 data/features/*
+data/gtfs_static/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/features/.gitkeep

@@ -50,27 +50,27 @@ def collect_vehicle_positions() -> None:
 
         # ── ÉTAPE 2 : Insérer en base ─────────────────────────────────────────
         # Décommenter quand la DB est prête (Semaine 2) :
-        #
-        # with get_db() as db:
-        #     for pos in positions:
-        #         db.execute(text("""
-        #             INSERT INTO vehicle_positions
-        #                 (vehicle_id, trip_id, route_id, location, bearing, speed, timestamp)
-        #             VALUES
-        #                 (:vid, :tid, :rid,
-        #                  ST_SetSRID(ST_MakePoint(:lon, :lat), 4326),
-        #                  :bearing, :speed, :ts)
-        #         """), {
-        #             "vid": pos.vehicle_id,
-        #             "tid": pos.trip_id,
-        #             "rid": pos.route_id,
-        #             "lat": pos.latitude,
-        #             "lon": pos.longitude,
-        #             "bearing": pos.bearing,
-        #             "speed": pos.speed,
-        #             "ts": pos.timestamp,
-        #         })
-        # logger.info(f"[Positions] {len(positions)} lignes insérées en DB")
+        
+        with get_db() as db:
+            for pos in positions:
+                db.execute(text("""
+                    INSERT INTO vehicle_positions
+                        (vehicle_id, trip_id, route_id, location, bearing, speed, timestamp)
+                    VALUES
+                        (:vid, :tid, :rid,
+                         ST_SetSRID(ST_MakePoint(:lon, :lat), 4326),
+                         :bearing, :speed, :ts)
+                """), {
+                    "vid": pos.vehicle_id,
+                    "tid": pos.trip_id,
+                    "rid": pos.route_id,
+                    "lat": pos.latitude,
+                    "lon": pos.longitude,
+                    "bearing": pos.bearing,
+                    "speed": pos.speed,
+                    "ts": pos.timestamp,
+                })
+        logger.info(f"[Positions] {len(positions)} lignes insérées en DB")
 
     except Exception as e:
         logger.error(f"[Positions] Échec : {e}")
