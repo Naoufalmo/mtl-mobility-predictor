@@ -7,7 +7,7 @@ APScheduler==3.10.4
 # ── Data manipulation ─────────────────────────────────────────────────────────
 pandas==2.2.2
 numpy==1.26.4
-pyarrow==16.0.0          # Parquet support
+pyarrow==15.0.2          # Parquet support (mlflow 2.13.0 requires <16)
 
 # ── Geospatial ────────────────────────────────────────────────────────────────
 geopandas==0.14.4

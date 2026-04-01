@@ -9,7 +9,7 @@ from pydantic import computed_field
 
 class Settings(BaseSettings):
     # STM
-    stm_api_key: str = ""
+    stm_api_key: str = "l7b7959bd7440e4aa896a73202263092fd"
     stm_gtfs_rt_base_url: str = "https://api.stm.info/pub/od/gtfs-rt/ic/v2"
 
     # Météo
