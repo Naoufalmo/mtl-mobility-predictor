@@ -89,22 +89,20 @@ def collect_trip_updates() -> None:
         logger.info(f"[TripUpdates] {len(updates)} trips, {total_stops} arrêts mis à jour")
 
         # ── ÉTAPE 2 : Insérer en base ─────────────────────────────────────────
-        # Décommenter quand la DB est prête (Semaine 2) :
-        #
-        # with get_db() as db:
-        #     for update in updates:
-        #         for stu in update.stop_updates:
-        #             db.execute(text("""
-        #                 INSERT INTO stop_delays
-        #                     (trip_id, route_id, stop_id, stop_sequence, delay_seconds)
-        #                 VALUES (:tid, :rid, :sid, :seq, :delay)
-        #             """), {
-        #                 "tid": update.trip_id,
-        #                 "rid": update.route_id,
-        #                 "sid": stu.stop_id,
-        #                 "seq": stu.stop_sequence,
-        #                 "delay": stu.arrival_delay or stu.departure_delay or 0,
-        #             })
+        with get_db() as db:
+            for update in updates:
+                for stu in update.stop_updates:
+                    db.execute(text("""
+                        INSERT INTO stop_delays
+                            (trip_id, route_id, stop_id, stop_sequence, delay_seconds)
+                        VALUES (:tid, :rid, :sid, :seq, :delay)
+                    """), {
+                        "tid": update.trip_id,
+                        "rid": update.route_id,
+                        "sid": stu.stop_id,
+                        "seq": stu.stop_sequence,
+                        "delay": stu.arrival_delay or stu.departure_delay or 0,
+                    })
 
     except Exception as e:
         logger.error(f"[TripUpdates] Échec : {e}")
@@ -124,17 +122,17 @@ def collect_weather() -> None:
         )
 
         # ── ÉTAPE 2 : Insérer en base ─────────────────────────────────────────
-        # with get_db() as db:
-        #     db.execute(text("""
-        #         INSERT INTO weather_snapshots
-        #             (temperature_c, precipitation_mm, wind_speed_kmh, weather_code)
-        #         VALUES (:temp, :precip, :wind, :code)
-        #     """), {
-        #         "temp":   snap.temperature_c,
-        #         "precip": snap.precipitation_mm,
-        #         "wind":   snap.wind_speed_kmh,
-        #         "code":   snap.weather_code,
-        #     })
+        with get_db() as db:
+            db.execute(text("""
+                INSERT INTO weather_snapshots
+                    (temperature_c, precipitation_mm, wind_speed_kmh, weather_code)
+                VALUES (:temp, :precip, :wind, :code)
+            """), {
+                "temp":   snap.temperature_c,
+                "precip": snap.precipitation_mm,
+                "wind":   snap.wind_speed_kmh,
+                "code":   snap.weather_code,
+            })
 
     except Exception as e:
         logger.error(f"[Météo] Échec : {e}")
@@ -147,11 +145,10 @@ def main():
     logger.info("  Montréal Urban Mobility Predictor — Collecteur")
     logger.info("=" * 60)
 
-    # Vérification DB (Semaine 2 — décommenter quand PostGIS est démarré)
-    # if not check_connection():
-    #     logger.error("Impossible de se connecter à la DB. Vérifiez docker-compose.")
-    #     sys.exit(1)
-    # logger.info("[DB] Connexion PostGIS OK")
+    if not check_connection():
+        logger.error("Impossible de se connecter à la DB. Vérifiez docker-compose.")
+        sys.exit(1)
+    logger.info("[DB] Connexion PostGIS OK")
 
     scheduler = BlockingScheduler(timezone="America/Montreal")
 
