@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm \"c:/Users/Naoufal/Desktop/Projets perso de dev/Montréal Urban Mobility Predictor/mtl-mobility-predictor/frontend/index.html\")",
+      "Bash(rm \"c:/Users/Naoufal/Desktop/Projets perso de dev/Montréal Urban Mobility Predictor/mtl-mobility-predictor/frontend/static/css/style.css\")",
+      "Bash(rm \"c:/Users/Naoufal/Desktop/Projets perso de dev/Montréal Urban Mobility Predictor/mtl-mobility-predictor/frontend/static/js/api.js\")",
+      "Bash(rm \"c:/Users/Naoufal/Desktop/Projets perso de dev/Montréal Urban Mobility Predictor/mtl-mobility-predictor/frontend/static/js/app.js\")",
+      "Bash(rm \"c:/Users/Naoufal/Desktop/Projets perso de dev/Montréal Urban Mobility Predictor/mtl-mobility-predictor/frontend/static/js/drawer.js\")"
+    ]
+  }
+}

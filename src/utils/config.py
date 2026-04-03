@@ -9,7 +9,7 @@ from pydantic import computed_field
 
 class Settings(BaseSettings):
     # STM
-    stm_api_key: str = "l7b7959bd7440e4aa896a73202263092fd"
+    stm_api_key: str
     stm_gtfs_rt_base_url: str = "https://api.stm.info/pub/od/gtfs-rt/ic/v2"
 
     # Météo
@@ -22,13 +22,13 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "mobility"
     postgres_user: str = "mobility_user"
-    postgres_password: str = "changeme"
+    postgres_password: str
 
     # Collecte
     collection_interval_sec: int = 30
 
     # MLflow
-    mlflow_tracking_uri: str = "http://localhost:5000"
+    mlflow_tracking_uri: str = "http://localhost:5001"
     mlflow_experiment_name: str = "stm-delay-prediction"
 
     @computed_field

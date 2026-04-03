@@ -1,14 +1,15 @@
 version: "3.9"
 
 services:
+
   # ── Base de données PostGIS ──────────────────────────────────────────────────
   db:
     image: postgis/postgis:16-3.4
     container_name: mobility_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-mobility}
-      POSTGRES_USER: ${POSTGRES_USER:-mobility_user}
+      POSTGRES_DB:       ${POSTGRES_DB:-mobility}
+      POSTGRES_USER:     ${POSTGRES_USER:-mobility_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
       - "5432:5432"
@@ -22,44 +23,54 @@ services:
       retries: 5
 
   # ── Collecteur de données ────────────────────────────────────────────────────
-  # PHASE 2 — décommenter quand src/collector/main.py est prêt
-  # collector:
-  #   build:
-  #     context: .
-  #     dockerfile: docker/Dockerfile.collector
-  #   container_name: mobility_collector
-  #   restart: unless-stopped
-  #   env_file: .env
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+  collector:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: mobility_collector
+    restart: unless-stopped
+    command: python -m src.collector.main
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db        # remplace "localhost" du .env
+    volumes:
+      - ./data/gtfs_static:/app/data/gtfs_static:ro
+      - ./src:/app/src:ro
+    depends_on:
+      db:
+        condition: service_healthy
 
   # ── API FastAPI ───────────────────────────────────────────────────────────────
-  # PHASE 3 — décommenter quand src/api/main.py est prêt
-  # api:
-  #   build:
-  #     context: .
-  #     dockerfile: docker/Dockerfile.api
-  #   container_name: mobility_api
-  #   restart: unless-stopped
-  #   env_file: .env
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: mobility_api
+    restart: unless-stopped
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db        # remplace "localhost" du .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/features:/app/data/features:ro   # model.pkl + model_artifacts.json
+      - ./frontend:/app/frontend:ro             # carte Leaflet
+      - ./src:/app/src:ro                       # code source (restart suffit, pas de rebuild)
+    depends_on:
+      db:
+        condition: service_healthy
 
   # ── MLflow UI ─────────────────────────────────────────────────────────────────
-  # PHASE 2 — décommenter pour suivre les expériences ML
-  # mlflow:
-  #   image: ghcr.io/mlflow/mlflow:v2.13.0
-  #   container_name: mobility_mlflow
-  #   command: mlflow server --host 0.0.0.0 --port 5000
-  #   ports:
-  #     - "5000:5000"
-  #   volumes:
-  #     - mlruns:/mlruns
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.10.1
+    container_name: mobility_mlflow
+    command: mlflow server --host 0.0.0.0 --port 5000
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlruns:/mlruns
 
 volumes:
   pgdata:
-  # mlruns:
+  mlruns:

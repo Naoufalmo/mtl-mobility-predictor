@@ -15,7 +15,11 @@ import logging
 import signal
 import sys
 import time
+from datetime import datetime, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
+import pandas as pd
 from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import text
 
@@ -23,6 +27,34 @@ from src.utils.config import settings
 from src.utils.db import get_db, check_connection
 from src.collector.gtfs_client import GTFSClient
 from src.collector.weather_client import get_current_weather
+
+MTL = ZoneInfo("America/Montreal")
+GTFS_STATIC_PATH = Path("data/gtfs_static/stop_times.txt")
+
+# Lookup (trip_id, stop_sequence) → secondes depuis minuit local
+_stop_times_lookup: dict[tuple[str, int], int] = {}
+
+
+def _load_stop_times() -> None:
+    """Charge stop_times.txt en mémoire pour le calcul des délais."""
+    global _stop_times_lookup
+    logger.info(f"[StopTimes] Chargement de {GTFS_STATIC_PATH}...")
+    df = pd.read_csv(
+        GTFS_STATIC_PATH,
+        usecols=["trip_id", "stop_sequence", "arrival_time"],
+        dtype={"trip_id": str, "stop_sequence": int, "arrival_time": str},
+    )
+
+    def _to_seconds(t: str) -> int:
+        h, m, s = t.split(":")
+        return int(h) * 3600 + int(m) * 60 + int(s)
+
+    df["sched_sec"] = df["arrival_time"].apply(_to_seconds)
+    _stop_times_lookup = {
+        (row.trip_id, row.stop_sequence): row.sched_sec
+        for row in df.itertuples(index=False)
+    }
+    logger.info(f"[StopTimes] {len(_stop_times_lookup):,} entrées chargées")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -88,21 +120,49 @@ def collect_trip_updates() -> None:
         total_stops = sum(len(u.stop_updates) for u in updates)
         logger.info(f"[TripUpdates] {len(updates)} trips, {total_stops} arrêts mis à jour")
 
-        # ── ÉTAPE 2 : Insérer en base ─────────────────────────────────────────
+        # ── ÉTAPE 2 : Calculer les délais et insérer en base ──────────────────
+        inserted = 0
+        skipped = 0
         with get_db() as db:
             for update in updates:
+                # Minuit local du jour de service (ex: "20260402" → timestamp UTC)
+                service_date = datetime.strptime(update.start_date, "%Y%m%d")
+                midnight_local = service_date.replace(tzinfo=MTL)
+                midnight_ts = int(midnight_local.timestamp())
+
                 for stu in update.stop_updates:
+                    if stu.arrival_time is None:
+                        skipped += 1
+                        continue
+
+                    sched_sec = _stop_times_lookup.get((update.trip_id, stu.stop_sequence))
+                    if sched_sec is None:
+                        skipped += 1
+                        continue
+
+                    sched_ts = midnight_ts + sched_sec
+                    delay = stu.arrival_time - sched_ts
+
+                    # Ignorer les délais aberrants (trip annulé, données corrompues)
+                    if not (-600 <= delay <= 3600):
+                        skipped += 1
+                        continue
+
                     db.execute(text("""
                         INSERT INTO stop_delays
-                            (trip_id, route_id, stop_id, stop_sequence, delay_seconds)
-                        VALUES (:tid, :rid, :sid, :seq, :delay)
+                            (trip_id, route_id, stop_id, stop_sequence, delay_seconds, scheduled_at)
+                        VALUES (:tid, :rid, :sid, :seq, :delay, to_timestamp(:sched_ts))
                     """), {
                         "tid": update.trip_id,
                         "rid": update.route_id,
                         "sid": stu.stop_id,
                         "seq": stu.stop_sequence,
-                        "delay": stu.arrival_delay or stu.departure_delay or 0,
+                        "delay": delay,
+                        "sched_ts": sched_ts,
                     })
+                    inserted += 1
+
+        logger.info(f"[TripUpdates] {inserted} délais insérés | {skipped} arrêts sans correspondance")
 
     except Exception as e:
         logger.error(f"[TripUpdates] Échec : {e}")
@@ -150,6 +210,8 @@ def main():
         sys.exit(1)
     logger.info("[DB] Connexion PostGIS OK")
 
+    _load_stop_times()
+
     scheduler = BlockingScheduler(timezone="America/Montreal")
 
     # Job 1 : positions GPS toutes les 30 secondes
@@ -158,7 +220,6 @@ def main():
         "interval",
         seconds=settings.collection_interval_sec,
         id="vehicle_positions",
-        next_run_time=None,   # Démarrage immédiat au lancement du scheduler
     )
 
     # Job 2 : trip updates toutes les 30 secondes

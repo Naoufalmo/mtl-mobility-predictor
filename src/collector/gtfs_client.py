@@ -46,14 +46,16 @@ class VehiclePosition:
 class StopTimeUpdate:
     stop_id: str
     stop_sequence: int
-    arrival_delay: Optional[int]     # secondes (positif = retard)
+    arrival_delay: Optional[int]     # secondes (positif = retard) — calculé dans main.py
     departure_delay: Optional[int]
+    arrival_time: Optional[int]      # timestamp Unix brut depuis le feed RT
 
 
 @dataclass
 class TripUpdate:
     trip_id: str
     route_id: str
+    start_date: str                  # "YYYYMMDD" — date de service locale
     collected_at: datetime
     stop_updates: list[StopTimeUpdate] = field(default_factory=list)
 
@@ -149,19 +151,20 @@ class GTFSClient:
 
             stop_updates = []
             for stu in tu.stop_time_update:
-                arrival_delay   = stu.arrival.delay   if stu.HasField("arrival")   else None
-                departure_delay = stu.departure.delay if stu.HasField("departure") else None
+                arrival_time = stu.arrival.time if stu.HasField("arrival") else None
 
                 stop_updates.append(StopTimeUpdate(
                     stop_id=stu.stop_id,
                     stop_sequence=stu.stop_sequence,
-                    arrival_delay=arrival_delay,
-                    departure_delay=departure_delay,
+                    arrival_delay=None,   # calculé dans main.py à partir de arrival_time
+                    departure_delay=None,
+                    arrival_time=arrival_time,
                 ))
 
             updates.append(TripUpdate(
                 trip_id=tu.trip.trip_id,
                 route_id=tu.trip.route_id,
+                start_date=tu.trip.start_date,
                 collected_at=now,
                 stop_updates=stop_updates,
             ))

@@ -70,6 +70,7 @@ def build_feature_dataset(output_path: str | None = None) -> pd.DataFrame:
             delay_seconds
         FROM v_delays_enriched
         WHERE delay_seconds IS NOT NULL
+          AND delay_seconds != 0           -- exclure les arrêts non encore actualisés par la STM
           AND temperature_c IS NOT NULL    -- lignes sans snapshot météo associé
         ORDER BY scheduled_at
     """
@@ -94,6 +95,13 @@ def build_feature_dataset(output_path: str | None = None) -> pd.DataFrame:
 
     # Supprimer les NaN restants
     df = df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
+
+    # Échantillonner si trop volumineux pour l'entraînement (garder l'ordre chronologique)
+    MAX_ROWS = 2_000_000
+    if len(df) > MAX_ROWS:
+        df = df.iloc[::len(df) // MAX_ROWS].head(MAX_ROWS)
+        logger.info(f"[Features] Échantillonné à {MAX_ROWS:,} lignes (ordre chronologique conservé)")
+
     logger.info(f"[Features] {len(df)} lignes finales")
 
     if output_path:
