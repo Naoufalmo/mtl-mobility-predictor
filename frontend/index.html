@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MTL Mobility — Predictor</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Inter font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/static/css/dashboard.css" />
+</head>
+<body>
+
+  <div class="dashboard" id="dashboard">
+
+    <!-- ─── TOPBAR ──────────────────────────────────────────── -->
+    <header class="card topbar">
+      <div class="topbar-brand">
+        <div class="brand-mark">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        </div>
+        <div>
+          <div class="brand-name">MTL Mobility Predictor</div>
+          <div class="brand-sub">Réseau STM · Montréal</div>
+        </div>
+      </div>
+
+      <nav class="topbar-nav">
+        <div class="nav-pill active">Tableau de bord</div>
+        <a href="/docs" target="_blank" class="nav-pill">API Docs</a>
+      </nav>
+
+      <div class="topbar-right">
+        <div class="status-chip" id="api-status-chip">
+          <span class="status-dot"></span>
+          <span id="api-status-text">Connexion…</span>
+        </div>
+        <div class="refresh-time" id="last-refresh">—</div>
+      </div>
+    </header>
+
+    <!-- ─── HERO ────────────────────────────────────────────── -->
+    <div class="card hero-card" style="--delay:1">
+      <div class="hero-glow"></div>
+      <h1 class="hero-title">Prédiction<br>de délais<br>temps réel</h1>
+      <p class="hero-desc">Modèle hybride XGBoost + lookup entraîné sur données GTFS-RT de la STM. Rafraîchissement automatique toutes les 30 s.</p>
+      <div class="hero-pills">
+        <span class="pill pill-indigo">XGBoost</span>
+        <span class="pill pill-green">GTFS-RT</span>
+        <span class="pill pill-amber">PostGIS</span>
+        <span class="pill pill-slate">FastAPI</span>
+      </div>
+    </div>
+
+    <!-- ─── KPI : Véhicules ──────────────────────────────────── -->
+    <div class="card kpi-card" id="kpi-vehicles-card" style="--delay:2">
+      <div class="kpi-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </div>
+      <div class="kpi-label">Véhicules actifs</div>
+      <div class="kpi-value" id="kpi-vehicles-val">—</div>
+      <div class="kpi-sub" id="kpi-vehicles-sub">en circulation</div>
+      <div class="kpi-track"><div class="kpi-fill" id="kpi-vehicles-fill" style="width:0%"></div></div>
+    </div>
+
+    <!-- ─── KPI : Délai moyen ────────────────────────────────── -->
+    <div class="card kpi-card" id="kpi-delay-card" style="--delay:3">
+      <div class="kpi-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="kpi-label">Délai moyen réseau</div>
+      <div class="kpi-value" id="kpi-delay-val">—<span class="kpi-unit">min</span></div>
+      <div class="kpi-sub" id="kpi-delay-sub">5 dernières minutes</div>
+      <div class="kpi-track"><div class="kpi-fill" id="kpi-delay-fill" style="width:0%"></div></div>
+    </div>
+
+    <!-- ─── KPI : Lignes ─────────────────────────────────────── -->
+    <div class="card kpi-card" id="kpi-lines-card" style="--delay:4">
+      <div class="kpi-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div class="kpi-label">Lignes surveillées</div>
+      <div class="kpi-value" id="kpi-lines-val">—</div>
+      <div class="kpi-sub" id="kpi-lines-sub">avec données actives</div>
+      <div class="kpi-track"><div class="kpi-fill" id="kpi-lines-fill" style="width:0%"></div></div>
+    </div>
+
+    <!-- ─── MAP ──────────────────────────────────────────────── -->
+    <div class="card map-card" style="--delay:5">
+      <div class="map-header">
+        <div class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          Positions temps réel
+        </div>
+        <div class="map-meta">
+          <span class="map-legend-dot" style="background:var(--success)"></span> À l'heure
+          <span class="map-legend-dot" style="background:var(--warning); margin-left:10px"></span> Léger retard
+          <span class="map-legend-dot" style="background:var(--danger); margin-left:10px"></span> Retard
+        </div>
+        <div class="chip chip-sm" id="map-count-chip">— véhicules</div>
+      </div>
+      <div id="map"></div>
+    </div>
+
+    <!-- ─── TOP RETARDS ──────────────────────────────────────── -->
+    <div class="card delays-card" style="--delay:6">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          Top retards
+        </div>
+        <div class="chip chip-accent">5 min</div>
+      </div>
+      <div class="delay-list" id="delay-list">
+        <div class="empty-state">Chargement…</div>
+      </div>
+    </div>
+
+    <!-- ─── MÉTÉO ─────────────────────────────────────────────── -->
+    <div class="card weather-card" style="--delay:7">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/></svg>
+          Météo Montréal
+        </div>
+        <div class="refresh-time" id="weather-time">—</div>
+      </div>
+      <div class="weather-main">
+        <div>
+          <div class="weather-temp" id="weather-temp">—</div>
+          <div class="weather-desc" id="weather-desc">Chargement…</div>
+        </div>
+        <div class="weather-emoji" id="weather-emoji">⛅</div>
+      </div>
+      <div class="weather-grid">
+        <div class="weather-stat">
+          <div class="ws-label">Précipitation</div>
+          <div class="ws-value" id="w-precip">— mm</div>
+        </div>
+        <div class="weather-stat">
+          <div class="ws-label">Vent</div>
+          <div class="ws-value" id="w-wind">— km/h</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── SIMULATEUR ───────────────────────────────────────── -->
+    <div class="card predict-card" style="--delay:8">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 2.93 19.07m16.14 0A10 10 0 0 0 4.93 4.93"/></svg>
+          Simulateur ML
+        </div>
+        <div class="chip chip-accent">Prédiction</div>
+      </div>
+
+      <div class="predict-form">
+        <div class="field">
+          <label>Ligne STM</label>
+          <select id="pred-route"><option value="">Choisir…</option></select>
+        </div>
+        <div class="field">
+          <label>Heure (0–23)</label>
+          <input type="number" id="pred-hour" min="0" max="23" value="8" />
+        </div>
+        <div class="field">
+          <label>Température (°C)</label>
+          <input type="number" id="pred-temp" value="5" step="0.5" />
+        </div>
+        <div class="field">
+          <label>Vent (km/h)</label>
+          <input type="number" id="pred-wind" value="15" step="1" />
+        </div>
+        <div class="field">
+          <label>Précipitation (mm)</label>
+          <input type="number" id="pred-precip" value="0" step="0.1" min="0" />
+        </div>
+        <div class="field">
+          <label>Heure de pointe</label>
+          <select id="pred-rush">
+            <option value="true">Oui</option>
+            <option value="false">Non</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn-predict" id="btn-predict" onclick="runPredict()">
+        <span id="btn-label">Calculer le délai prédit</span>
+        <svg class="btn-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+
+      <div class="predict-result" id="predict-result">
+        <div class="result-row">
+          <div class="result-value" id="result-min">—</div>
+          <div class="result-unit">min</div>
+          <div class="result-secs" id="result-sec">—</div>
+        </div>
+        <div class="result-meta">
+          <div class="result-meta-item">
+            <div class="rmi-label">Confiance</div>
+            <div class="rmi-val" id="r-confidence">—</div>
+          </div>
+          <div class="result-meta-sep"></div>
+          <div class="result-meta-item">
+            <div class="rmi-label">Méthode</div>
+            <div class="rmi-val" id="r-predictor">—</div>
+          </div>
+          <div class="result-meta-sep"></div>
+          <div class="result-meta-item">
+            <div class="rmi-label">Observations</div>
+            <div class="rmi-val" id="r-obs">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── SANTÉ SYSTÈME ─────────────────────────────────────── -->
+    <div class="card health-card" style="--delay:9">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          Statut système
+        </div>
+      </div>
+      <div class="health-list">
+        <div class="health-row">
+          <div class="h-dot" id="dot-api"></div>
+          <div class="h-info">
+            <div class="h-name">API FastAPI</div>
+            <div class="h-desc">Endpoint /health</div>
+          </div>
+          <div class="h-val" id="val-api">—</div>
+        </div>
+        <div class="health-row">
+          <div class="h-dot" id="dot-db"></div>
+          <div class="h-info">
+            <div class="h-name">Base de données</div>
+            <div class="h-desc">PostGIS / PostgreSQL</div>
+          </div>
+          <div class="h-val" id="val-db">—</div>
+        </div>
+        <div class="health-row">
+          <div class="h-dot" id="dot-model"></div>
+          <div class="h-info">
+            <div class="h-name">Modèle ML</div>
+            <div class="h-desc">XGBoost + Lookup table</div>
+          </div>
+          <div class="h-val" id="val-model">—</div>
+        </div>
+        <div class="health-row">
+          <div class="h-dot" id="dot-weather-sys"></div>
+          <div class="h-info">
+            <div class="h-name">Météo snapshot</div>
+            <div class="h-desc">Open-Meteo pipeline</div>
+          </div>
+          <div class="h-val" id="val-weather-sys">—</div>
+        </div>
+        <div class="health-row">
+          <div class="h-dot" id="dot-collector"></div>
+          <div class="h-info">
+            <div class="h-name">Collecteur GTFS-RT</div>
+            <div class="h-desc">Délais &amp; positions</div>
+          </div>
+          <div class="h-val" id="val-collector">—</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /dashboard -->
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
